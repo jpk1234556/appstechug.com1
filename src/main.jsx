@@ -1,7 +1,7 @@
-import React, { StrictMode, useState } from 'react';
+import React, { StrictMode, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { ArrowUpRight, ChevronDown, Facebook, Instagram, Linkedin, Menu, Minus, Plus, Send, ShoppingBag, Trash2, Twitter, X } from 'lucide-react';
-import { createOrder, subscribeToNewsletter } from './lib/supabase';
+import { createOrder, getSession, onAuthStateChange, signIn, signOut, signUp, subscribeToNewsletter } from './lib/supabase';
 import './styles.css';
 
 const services = [
@@ -24,6 +24,24 @@ const faqs = [
   ['Which payment methods are accepted?', 'We accept mobile money, bank transfer, and other flexible payment options for clients across Uganda.'],
 ];
 
+function LoginView({ onClose, onAuthenticated }) {
+  const [mode, setMode] = useState('login');
+  const [form, setForm] = useState({ email: '', password: '' });
+  const [status, setStatus] = useState('');
+
+  const submit = async (event) => {
+    event.preventDefault();
+    if (form.password.length < 6) return setStatus('Password must be at least 6 characters.');
+    setStatus('Working...');
+    const result = mode === 'login' ? await signIn(form.email, form.password) : await signUp(form.email, form.password);
+    if (!result.ok) return setStatus(result.message);
+    setStatus(mode === 'login' ? 'You are signed in.' : 'Account created. Check your email if confirmation is enabled.');
+    onAuthenticated();
+  };
+
+  return <div className="auth-screen"><div className="auth-panel"><button className="auth-close" onClick={onClose} aria-label="Close login"><X /></button><a className="logo auth-logo" href="#top"><strong>APPSTECH</strong><span>INTERNATIONAL</span><small>SALES | SERVICE | SOLUTIONS | SPARES</small></a><p className="eyebrow">/ Customer account</p><h1>{mode === 'login' ? 'Welcome back.' : 'Start your account.'}</h1><p className="auth-copy">Save your details and keep track of your Appstech orders in one place.</p><form className="auth-form" onSubmit={submit}><label htmlFor="auth-email">Email address</label><input id="auth-email" required type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} /><label htmlFor="auth-password">Password</label><input id="auth-password" required type="password" minLength="6" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} /><button className="button button-blue" type="submit">{mode === 'login' ? 'Sign in' : 'Create account'} <ArrowUpRight size={17} /></button>{status && <p className="form-status" role="status">{status}</p>}</form><button className="auth-switch" onClick={() => { setMode(mode === 'login' ? 'signup' : 'login'); setStatus(''); }}>{mode === 'login' ? 'Need an account? Create one' : 'Already have an account? Sign in'}</button></div><div className="auth-image"><div><span className="eyebrow">Connected businesses start here</span><h2>Make your connection <em>count.</em></h2></div></div></div>;
+}
+
 function App() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeFaq, setActiveFaq] = useState(0);
@@ -33,6 +51,13 @@ function App() {
   const [cartOpen, setCartOpen] = useState(false);
   const [customer, setCustomer] = useState({ name: '', email: '', phone: '' });
   const [orderStatus, setOrderStatus] = useState('');
+  const [authOpen, setAuthOpen] = useState(false);
+  const [session, setSession] = useState(null);
+
+  useEffect(() => {
+    getSession().then(setSession);
+    return onAuthStateChange(setSession);
+  }, []);
 
   const cartCount = cart.reduce((total, item) => total + item.quantity, 0);
   const cartTotal = cart.reduce((total, item) => total + item.amount * item.quantity, 0);
@@ -67,7 +92,8 @@ function App() {
 
   return <div className="site-shell">
     <div className="utility-bar"><div className="utility-inner"><span>Sales <i>|</i> Service <i>|</i> Solution <i>|</i> Spare</span><div className="socials"><a href="#footer" aria-label="Facebook"><Facebook size={15} /></a><a href="#footer" aria-label="Twitter"><Twitter size={15} /></a><a href="#footer" aria-label="LinkedIn"><Linkedin size={15} /></a><a href="#footer" aria-label="Instagram"><Instagram size={15} /></a></div></div></div>
-    <header className="header"><a className="logo" href="#top" aria-label="Appstech home"><strong>APPSTECH</strong><span>INTERNATIONAL</span><small>SALES | SERVICE | SOLUTIONS | SPARES</small></a><nav className={menuOpen ? 'nav nav-open' : 'nav'}><a href="#about" onClick={() => setMenuOpen(false)}>About</a><a href="#services" onClick={() => setMenuOpen(false)}>Services</a><a href="#pricing" onClick={() => setMenuOpen(false)}>Pricing</a><a href="#faq" onClick={() => setMenuOpen(false)}>FAQ</a><a className="nav-cta" href="#contact" onClick={() => setMenuOpen(false)}>Talk to us <ArrowUpRight size={16} /></a></nav><div className="header-actions"><button className="cart-button" onClick={() => setCartOpen(true)} aria-label={`Open cart with ${cartCount} items`}><ShoppingBag size={20} /><span>{cartCount}</span></button><button className="menu-button" onClick={() => setMenuOpen(!menuOpen)} aria-label="Toggle navigation" aria-expanded={menuOpen}>{menuOpen ? <X /> : <Menu />}</button></div></header>
+    <header className="header"><a className="logo" href="#top" aria-label="Appstech home"><strong>APPSTECH</strong><span>INTERNATIONAL</span><small>SALES | SERVICE | SOLUTIONS | SPARES</small></a><nav className={menuOpen ? 'nav nav-open' : 'nav'}><a href="#about" onClick={() => setMenuOpen(false)}>About</a><a href="#services" onClick={() => setMenuOpen(false)}>Services</a><a href="#pricing" onClick={() => setMenuOpen(false)}>Pricing</a><a href="#faq" onClick={() => setMenuOpen(false)}>FAQ</a><a className="nav-cta" href="#contact" onClick={() => setMenuOpen(false)}>Talk to us <ArrowUpRight size={16} /></a></nav><div className="header-actions">{session ? <button className="account-button" onClick={signOut} aria-label="Sign out">Sign out</button> : <button className="account-button" onClick={() => setAuthOpen(true)}>Log in</button>}<button className="cart-button" onClick={() => setCartOpen(true)} aria-label={`Open cart with ${cartCount} items`}><ShoppingBag size={20} /><span>{cartCount}</span></button><button className="menu-button" onClick={() => setMenuOpen(!menuOpen)} aria-label="Toggle navigation" aria-expanded={menuOpen}>{menuOpen ? <X /> : <Menu />}</button></div></header>
+    {authOpen && <LoginView onClose={() => setAuthOpen(false)} onAuthenticated={() => setAuthOpen(false)} />}
     <main id="top">
       <section className="hero"><div className="hero-overlay" /><div className="hero-content"><p className="eyebrow">Reliable connectivity. Real opportunity.</p><h1>Turn internet connectivity <em>into a business.</em></h1><p className="hero-copy">We provide everything you need to build and operate a successful Wi-Fi hotspot business, from network setup and equipment to user management and technical support.</p><div className="hero-actions"><a className="button button-light" href="#contact">Free consultation <ArrowUpRight size={18} /></a><a className="text-link" href="#services">Explore services <ArrowUpRight size={18} /></a></div></div><div className="hero-note"><span>01</span><span>Connectivity built for growth</span></div></section>
       <section className="partner-strip"><span>Trusted technology for ambitious operators</span><div className="partner-logos"><b>DELL</b><b>hp</b><b>Lenovo</b><b>TOSHIBA</b></div></section>

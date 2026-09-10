@@ -4,6 +4,34 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const supabase = supabaseUrl && supabaseAnonKey ? createClient(supabaseUrl, supabaseAnonKey) : null;
 
+export async function getSession() {
+  if (!supabase) return null;
+  const { data } = await supabase.auth.getSession();
+  return data.session;
+}
+
+export function onAuthStateChange(callback) {
+  if (!supabase) return () => {};
+  const { data } = supabase.auth.onAuthStateChange((_event, session) => callback(session));
+  return () => data.subscription.unsubscribe();
+}
+
+export async function signIn(email, password) {
+  if (!supabase) return { ok: false, message: 'Login is not configured yet.' };
+  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  return error ? { ok: false, message: error.message } : { ok: true };
+}
+
+export async function signUp(email, password) {
+  if (!supabase) return { ok: false, message: 'Account creation is not configured yet.' };
+  const { error } = await supabase.auth.signUp({ email, password });
+  return error ? { ok: false, message: error.message } : { ok: true };
+}
+
+export async function signOut() {
+  if (supabase) await supabase.auth.signOut();
+}
+
 export async function subscribeToNewsletter(email) {
   if (!supabase) {
     return { ok: false, message: 'Newsletter signup is not configured yet.' };

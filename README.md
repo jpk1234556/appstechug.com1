@@ -10,15 +10,22 @@ React and Vite landing page with a Supabase-backed newsletter signup.
    npm install
    ```
 
-2. Copy `.env.example` to `.env` and add the Supabase project URL and anon key.
+2. In the Supabase dashboard, create a project and copy **Project URL** and the public **anon key** from Project Settings > API.
 
-3. In Supabase, open **SQL Editor**, run [`supabase/schema.sql`](supabase/schema.sql), then start the app:
+3. Copy `.env.example` to `.env` and replace the placeholders:
+
+   ```env
+   VITE_SUPABASE_URL=https://your-project.supabase.co
+   VITE_SUPABASE_ANON_KEY=your-public-anon-key
+   ```
+
+4. In Supabase, open **SQL Editor**, run [`supabase/schema.sql`](supabase/schema.sql), then start the app:
 
    ```bash
    npm run dev
    ```
 
-The browser only uses the Supabase anon key. Never put a Supabase service-role key in `.env` or frontend code.
+The newsletter and order request forms connect to Supabase only when those environment variables are present. The browser only uses the Supabase anon key. Never put a Supabase service-role key in `.env` or frontend code.
 
 ## GitHub and Vercel
 

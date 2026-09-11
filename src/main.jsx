@@ -1,7 +1,7 @@
 import React, { StrictMode, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { ArrowUpRight, ChevronDown, Facebook, Instagram, Linkedin, Menu, Minus, Plus, Send, ShoppingBag, Trash2, Twitter, X } from 'lucide-react';
-import { createOrder, getAdminOrders, getSession, isAdmin, onAuthStateChange, signIn, signOut, signUp, subscribeToNewsletter, updateOrderStatus } from './lib/supabase';
+import { createOrder, getAdminOrders, getAdminUsers, getCurrentProfile, getSession, isAdmin, onAuthStateChange, signIn, signOut, signUp, subscribeToNewsletter, updateOrderStatus, updateUserAccount } from './lib/supabase';
 import './styles.css';
 
 const services = [
@@ -43,13 +43,17 @@ function LoginView({ onClose, onAuthenticated }) {
 }
 
 function AdminView({ onClose }) {
+  const [view, setView] = useState('orders');
   const [orders, setOrders] = useState([]);
+  const [users, setUsers] = useState([]);
   const [status, setStatus] = useState('Loading orders...');
 
   useEffect(() => {
-    getAdminOrders().then((result) => {
-      if (!result.ok) return setStatus(result.message);
-      setOrders(result.orders || []);
+    Promise.all([getAdminOrders(), getAdminUsers()]).then(([ordersResult, usersResult]) => {
+      if (!ordersResult.ok) return setStatus(ordersResult.message);
+      if (!usersResult.ok) return setStatus(usersResult.message);
+      setOrders(ordersResult.orders || []);
+      setUsers(usersResult.users || []);
       setStatus('');
     });
   }, []);
@@ -60,7 +64,13 @@ function AdminView({ onClose }) {
     setOrders((current) => current.map((order) => order.id === orderId ? { ...order, status: nextStatus } : order));
   };
 
-  return <div className="admin-screen"><div className="admin-header"><div><span className="eyebrow">/ Operations</span><h1>Order desk.</h1><p>Review customer requests and keep delivery status moving.</p></div><button className="close-cart" onClick={onClose} aria-label="Close admin dashboard"><X /></button></div><div className="admin-content">{status && <p className="admin-status">{status}</p>}{!status && orders.length === 0 && <p className="admin-status">No order requests yet.</p>}{orders.map((order) => <article className="admin-order" key={order.id}><div className="admin-order-main"><div><span className="order-date">{new Date(order.created_at).toLocaleString()}</span><h2>{order.customer_name}</h2><p>{order.customer_email} · {order.customer_phone}</p></div><strong>Ugx {order.total_amount.toLocaleString()}</strong></div><div className="admin-order-items">{order.order_items?.map((item) => <span key={`${order.id}-${item.product_name}`}>{item.quantity} × {item.product_name}</span>)}</div><div className="admin-order-footer"><span className={`order-status status-${order.status}`}>{order.status}</span><select value={order.status} onChange={(event) => changeStatus(order.id, event.target.value)} aria-label={`Update status for ${order.customer_name}`}><option value="requested">Requested</option><option value="confirmed">Confirmed</option><option value="paid">Paid</option><option value="processing">Processing</option><option value="completed">Completed</option><option value="cancelled">Cancelled</option></select></div></article>)}</div></div>;
+  const changeUser = async (userId, changes) => {
+    const result = await updateUserAccount(userId, changes);
+    if (!result.ok) return setStatus(result.message);
+    setUsers((current) => current.map((user) => user.user_id === userId ? { ...user, ...changes } : user));
+  };
+
+  return <div className="admin-screen"><div className="admin-header"><div><span className="eyebrow">/ Operations</span><h1>{view === 'orders' ? 'Order desk.' : 'User accounts.'}</h1><p>{view === 'orders' ? 'Review customer requests and keep delivery status moving.' : 'Control roles and access for every registered account.'}</p></div><button className="close-cart" onClick={onClose} aria-label="Close admin dashboard"><X /></button></div><div className="admin-tabs"><button className={view === 'orders' ? 'active' : ''} onClick={() => setView('orders')}>Orders <span>{orders.length}</span></button><button className={view === 'users' ? 'active' : ''} onClick={() => setView('users')}>User accounts <span>{users.length}</span></button></div><div className="admin-content">{status && <p className="admin-status">{status}</p>}{!status && view === 'orders' && orders.length === 0 && <p className="admin-status">No order requests yet.</p>}{!status && view === 'users' && users.length === 0 && <p className="admin-status">No user accounts yet.</p>}{view === 'orders' && orders.map((order) => <article className="admin-order" key={order.id}><div className="admin-order-main"><div><span className="order-date">{new Date(order.created_at).toLocaleString()}</span><h2>{order.customer_name}</h2><p>{order.customer_email} · {order.customer_phone}</p></div><strong>Ugx {order.total_amount.toLocaleString()}</strong></div><div className="admin-order-items">{order.order_items?.map((item) => <span key={`${order.id}-${item.product_name}`}>{item.quantity} × {item.product_name}</span>)}</div><div className="admin-order-footer"><span className={`order-status status-${order.status}`}>{order.status}</span><select value={order.status} onChange={(event) => changeStatus(order.id, event.target.value)} aria-label={`Update status for ${order.customer_name}`}><option value="requested">Requested</option><option value="confirmed">Confirmed</option><option value="paid">Paid</option><option value="processing">Processing</option><option value="completed">Completed</option><option value="cancelled">Cancelled</option></select></div></article>)}{view === 'users' && users.map((user) => <article className="admin-user" key={user.user_id}><div><span className="order-date">Joined {new Date(user.created_at).toLocaleDateString()}</span><h2>{user.email}</h2><p>{user.user_id}</p></div><div className="admin-user-controls"><select value={user.role} onChange={(event) => changeUser(user.user_id, { role: event.target.value })} aria-label={`Role for ${user.email}`}><option value="customer">Customer</option><option value="admin">Admin</option></select><select value={user.status} onChange={(event) => changeUser(user.user_id, { status: event.target.value })} aria-label={`Status for ${user.email}`}><option value="active">Active</option><option value="suspended">Suspended</option></select></div></article>)}</div></div>;
 }
 
 function App() {
@@ -84,7 +94,14 @@ function App() {
 
   useEffect(() => {
     if (!session) return setAdmin(false);
-    isAdmin().then(setAdmin);
+    getCurrentProfile().then((profile) => {
+      if (profile?.status === 'suspended') {
+        signOut();
+        setSession(null);
+        return;
+      }
+      isAdmin().then(setAdmin);
+    });
   }, [session]);
 
   const cartCount = cart.reduce((total, item) => total + item.quantity, 0);

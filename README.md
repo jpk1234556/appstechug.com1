@@ -45,7 +45,6 @@ The `admin_users` table controls access. Admin RLS policies allow that user to v
 1. Create a GitHub repository and push this project.
 2. In Vercel, choose **New Project**, import the GitHub repository, and keep the framework as **Vite**.
 3. Add these Vercel environment variables for the Production, Preview, and Development environments:
-
    - `VITE_SUPABASE_URL`
    - `VITE_SUPABASE_ANON_KEY`
 

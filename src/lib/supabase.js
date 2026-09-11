@@ -80,3 +80,23 @@ export async function updateOrderStatus(orderId, status) {
   const { error } = await supabase.from('orders').update({ status }).eq('id', orderId);
   return error ? { ok: false, message: 'Order status could not be updated.' } : { ok: true };
 }
+
+export async function getAdminUsers() {
+  if (!supabase) return { ok: false, message: 'Supabase is not configured yet.' };
+  const { data, error } = await supabase.from('user_profiles').select('user_id, email, role, status, created_at').order('created_at', { ascending: false });
+  return error ? { ok: false, message: 'User accounts could not be loaded.' } : { ok: true, users: data };
+}
+
+export async function updateUserAccount(userId, changes) {
+  if (!supabase) return { ok: false, message: 'Supabase is not configured yet.' };
+  const { error } = await supabase.from('user_profiles').update(changes).eq('user_id', userId);
+  return error ? { ok: false, message: 'User account could not be updated.' } : { ok: true };
+}
+
+export async function getCurrentProfile() {
+  if (!supabase) return null;
+  const { data } = await supabase.auth.getUser();
+  if (!data.user) return null;
+  const { data: profile } = await supabase.from('user_profiles').select('role, status').eq('user_id', data.user.id).maybeSingle();
+  return profile;
+}

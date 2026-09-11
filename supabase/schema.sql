@@ -102,3 +102,76 @@ create policy "Admins can view order items"
   to authenticated
   using (public.is_admin());
 
+create table if not exists public.user_profiles (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  email text not null,
+  role text not null default 'customer' check (role in ('customer', 'admin')),
+  status text not null default 'active' check (status in ('active', 'suspended')),
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+alter table public.user_profiles enable row level security;
+
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.user_profiles (user_id, email)
+  values (new.id, coalesce(new.email, ''))
+  on conflict (user_id) do update set email = excluded.email;
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute procedure public.handle_new_user();
+
+insert into public.user_profiles (user_id, email)
+select id, coalesce(email, '') from auth.users
+on conflict (user_id) do update set email = excluded.email;
+
+drop policy if exists "Users can view their own profile" on public.user_profiles;
+create policy "Users can view their own profile"
+  on public.user_profiles
+  for select
+  to authenticated
+  using (user_id = auth.uid());
+
+drop policy if exists "Admins can view user profiles" on public.user_profiles;
+create policy "Admins can view user profiles"
+  on public.user_profiles
+  for select
+  to authenticated
+  using (public.is_admin());
+
+drop policy if exists "Admins can update user profiles" on public.user_profiles;
+create policy "Admins can update user profiles"
+  on public.user_profiles
+  for update
+  to authenticated
+  using (public.is_admin())
+  with check (public.is_admin());
+
+update public.user_profiles
+set role = 'admin'
+where user_id in (select user_id from public.admin_users);
+
+create or replace function public.is_admin()
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select exists (
+    select 1 from public.user_profiles
+    where user_id = auth.uid() and role = 'admin' and status = 'active'
+  );
+$$;
+

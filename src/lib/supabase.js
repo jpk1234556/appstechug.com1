@@ -65,3 +65,18 @@ export async function isAdmin() {
   const { data, error } = await supabase.rpc('is_admin');
   return !error && data === true;
 }
+
+export async function getAdminOrders() {
+  if (!supabase) return { ok: false, message: 'Supabase is not configured yet.' };
+  const { data, error } = await supabase
+    .from('orders')
+    .select('id, customer_name, customer_email, customer_phone, total_amount, status, created_at, order_items(product_name, unit_price, quantity)')
+    .order('created_at', { ascending: false });
+  return error ? { ok: false, message: 'Orders could not be loaded.' } : { ok: true, orders: data };
+}
+
+export async function updateOrderStatus(orderId, status) {
+  if (!supabase) return { ok: false, message: 'Supabase is not configured yet.' };
+  const { error } = await supabase.from('orders').update({ status }).eq('id', orderId);
+  return error ? { ok: false, message: 'Order status could not be updated.' } : { ok: true };
+}

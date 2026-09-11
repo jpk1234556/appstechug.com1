@@ -27,6 +27,19 @@ React and Vite landing page with a Supabase-backed newsletter signup.
 
 The newsletter and order request forms connect to Supabase only when those environment variables are present. The browser only uses the Supabase anon key. Never put a Supabase service-role key in `.env` or frontend code.
 
+## Create an admin account
+
+1. In Supabase, open **Authentication → Users** and create the admin user with an email and password.
+2. Copy that user's UUID.
+3. In **SQL Editor**, promote the user:
+
+   ```sql
+   insert into public.admin_users (user_id)
+   values ('PASTE_AUTH_USER_UUID_HERE');
+   ```
+
+The `admin_users` table controls access. Admin RLS policies allow that user to view and update orders; regular users cannot read customer orders. Do not add admin status to frontend environment variables or user-editable metadata.
+
 ## GitHub and Vercel
 
 1. Create a GitHub repository and push this project.

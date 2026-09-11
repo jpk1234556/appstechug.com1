@@ -17,13 +17,13 @@ export function onAuthStateChange(callback) {
 }
 
 export async function signIn(email, password) {
-  if (!supabase) return { ok: false, message: 'Login is not configured yet.' };
+  if (!supabase) return { ok: false, message: 'Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to .env, then restart Vite.' };
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   return error ? { ok: false, message: error.message } : { ok: true };
 }
 
 export async function signUp(email, password) {
-  if (!supabase) return { ok: false, message: 'Account creation is not configured yet.' };
+  if (!supabase) return { ok: false, message: 'Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to .env, then restart Vite.' };
   const { error } = await supabase.auth.signUp({ email, password });
   return error ? { ok: false, message: error.message } : { ok: true };
 }
@@ -58,4 +58,10 @@ export async function createOrder(customer, items, total) {
   const { error: itemError } = await supabase.from('order_items').insert(orderItems);
   if (itemError) return { ok: false, message: 'Your order could not be completed. Please try again.' };
   return { ok: true, orderId };
+}
+
+export async function isAdmin() {
+  if (!supabase) return false;
+  const { data, error } = await supabase.rpc('is_admin');
+  return !error && data === true;
 }

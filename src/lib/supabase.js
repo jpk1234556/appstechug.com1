@@ -93,6 +93,40 @@ export async function updateUserAccount(userId, changes) {
   return error ? { ok: false, message: 'User account could not be updated.' } : { ok: true };
 }
 
+export async function getProducts() {
+  if (!supabase) return { ok: false, message: 'Supabase is not configured yet.' };
+  const { data, error } = await supabase.from('products').select('id, name, amount, type, description, image_url, is_active, created_at').eq('is_active', true).order('created_at', { ascending: false });
+  return error ? { ok: false, message: 'Products could not be loaded.' } : { ok: true, products: data };
+}
+
+export async function getAdminProducts() {
+  if (!supabase) return { ok: false, message: 'Supabase is not configured yet.' };
+  const { data, error } = await supabase.from('products').select('id, name, amount, type, description, image_url, is_active, created_at').order('created_at', { ascending: false });
+  return error ? { ok: false, message: 'Products could not be loaded.' } : { ok: true, products: data };
+}
+
+export async function saveProduct(product, imageFile) {
+  if (!supabase) return { ok: false, message: 'Supabase is not configured yet.' };
+  let imageUrl = product.image_url || null;
+  if (imageFile) {
+    const extension = imageFile.name.split('.').pop()?.toLowerCase() || 'jpg';
+    const path = `${crypto.randomUUID()}.${extension}`;
+    const { error: uploadError } = await supabase.storage.from('product-images').upload(path, imageFile, { upsert: false, contentType: imageFile.type });
+    if (uploadError) return { ok: false, message: 'Product photo could not be uploaded.' };
+    imageUrl = supabase.storage.from('product-images').getPublicUrl(path).data.publicUrl;
+  }
+  const payload = { name: product.name, amount: Number(product.amount), type: product.type, description: product.description, image_url: imageUrl, is_active: product.is_active !== false };
+  const query = product.id ? supabase.from('products').update(payload).eq('id', product.id).select().single() : supabase.from('products').insert(payload).select().single();
+  const { data, error } = await query;
+  return error ? { ok: false, message: 'Product could not be saved.' } : { ok: true, product: data };
+}
+
+export async function deleteProduct(productId) {
+  if (!supabase) return { ok: false, message: 'Supabase is not configured yet.' };
+  const { error } = await supabase.from('products').delete().eq('id', productId);
+  return error ? { ok: false, message: 'Product could not be deleted.' } : { ok: true };
+}
+
 export async function getCurrentProfile() {
   if (!supabase) return null;
   const { data } = await supabase.auth.getUser();

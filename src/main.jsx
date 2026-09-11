@@ -1,7 +1,7 @@
 import React, { StrictMode, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { ArrowUpRight, ChevronDown, Facebook, Instagram, Linkedin, Menu, Minus, Plus, Send, ShoppingBag, Trash2, Twitter, X } from 'lucide-react';
-import { createOrder, getAdminOrders, getAdminUsers, getCurrentProfile, getSession, isAdmin, onAuthStateChange, signIn, signOut, signUp, subscribeToNewsletter, updateOrderStatus, updateUserAccount } from './lib/supabase';
+import { createOrder, deleteProduct, getAdminOrders, getAdminProducts, getAdminUsers, getCurrentProfile, getProducts, getSession, isAdmin, onAuthStateChange, saveProduct, signIn, signOut, signUp, subscribeToNewsletter, updateOrderStatus, updateUserAccount } from './lib/supabase';
 import './styles.css';
 
 const services = [
@@ -46,14 +46,19 @@ function AdminView({ onClose }) {
   const [view, setView] = useState('orders');
   const [orders, setOrders] = useState([]);
   const [users, setUsers] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [productForm, setProductForm] = useState({ name: '', amount: '', type: 'Product', description: '', image_url: '', is_active: true });
+  const [productImage, setProductImage] = useState(null);
   const [status, setStatus] = useState('Loading orders...');
 
   useEffect(() => {
-    Promise.all([getAdminOrders(), getAdminUsers()]).then(([ordersResult, usersResult]) => {
+    Promise.all([getAdminOrders(), getAdminUsers(), getAdminProducts()]).then(([ordersResult, usersResult, productsResult]) => {
       if (!ordersResult.ok) return setStatus(ordersResult.message);
       if (!usersResult.ok) return setStatus(usersResult.message);
+      if (!productsResult.ok) return setStatus(productsResult.message);
       setOrders(ordersResult.orders || []);
       setUsers(usersResult.users || []);
+      setProducts(productsResult.products || []);
       setStatus('');
     });
   }, []);
@@ -70,7 +75,30 @@ function AdminView({ onClose }) {
     setUsers((current) => current.map((user) => user.user_id === userId ? { ...user, ...changes } : user));
   };
 
-  return <div className="admin-screen"><div className="admin-header"><div><span className="eyebrow">/ Operations</span><h1>{view === 'orders' ? 'Order desk.' : 'User accounts.'}</h1><p>{view === 'orders' ? 'Review customer requests and keep delivery status moving.' : 'Control roles and access for every registered account.'}</p></div><button className="close-cart" onClick={onClose} aria-label="Close admin dashboard"><X /></button></div><div className="admin-tabs"><button className={view === 'orders' ? 'active' : ''} onClick={() => setView('orders')}>Orders <span>{orders.length}</span></button><button className={view === 'users' ? 'active' : ''} onClick={() => setView('users')}>User accounts <span>{users.length}</span></button></div><div className="admin-content">{status && <p className="admin-status">{status}</p>}{!status && view === 'orders' && orders.length === 0 && <p className="admin-status">No order requests yet.</p>}{!status && view === 'users' && users.length === 0 && <p className="admin-status">No user accounts yet.</p>}{view === 'orders' && orders.map((order) => <article className="admin-order" key={order.id}><div className="admin-order-main"><div><span className="order-date">{new Date(order.created_at).toLocaleString()}</span><h2>{order.customer_name}</h2><p>{order.customer_email} · {order.customer_phone}</p></div><strong>Ugx {order.total_amount.toLocaleString()}</strong></div><div className="admin-order-items">{order.order_items?.map((item) => <span key={`${order.id}-${item.product_name}`}>{item.quantity} × {item.product_name}</span>)}</div><div className="admin-order-footer"><span className={`order-status status-${order.status}`}>{order.status}</span><select value={order.status} onChange={(event) => changeStatus(order.id, event.target.value)} aria-label={`Update status for ${order.customer_name}`}><option value="requested">Requested</option><option value="confirmed">Confirmed</option><option value="paid">Paid</option><option value="processing">Processing</option><option value="completed">Completed</option><option value="cancelled">Cancelled</option></select></div></article>)}{view === 'users' && users.map((user) => <article className="admin-user" key={user.user_id}><div><span className="order-date">Joined {new Date(user.created_at).toLocaleDateString()}</span><h2>{user.email}</h2><p>{user.user_id}</p></div><div className="admin-user-controls"><select value={user.role} onChange={(event) => changeUser(user.user_id, { role: event.target.value })} aria-label={`Role for ${user.email}`}><option value="customer">Customer</option><option value="admin">Admin</option></select><select value={user.status} onChange={(event) => changeUser(user.user_id, { status: event.target.value })} aria-label={`Status for ${user.email}`}><option value="active">Active</option><option value="suspended">Suspended</option></select></div></article>)}</div></div>;
+  const editProduct = (product) => {
+    setProductForm({ ...product, description: product.description || '' });
+    setProductImage(null);
+  };
+
+  const submitProduct = async (event) => {
+    event.preventDefault();
+    setStatus('Saving product...');
+    const result = await saveProduct(productForm, productImage);
+    if (!result.ok) return setStatus(result.message);
+    setProducts((current) => productForm.id ? current.map((item) => item.id === result.product.id ? result.product : item) : [result.product, ...current]);
+    setProductForm({ name: '', amount: '', type: 'Product', description: '', image_url: '', is_active: true });
+    setProductImage(null);
+    setStatus('Product saved.');
+  };
+
+  const removeProduct = async (productId) => {
+    if (!window.confirm('Delete this product?')) return;
+    const result = await deleteProduct(productId);
+    if (!result.ok) return setStatus(result.message);
+    setProducts((current) => current.filter((product) => product.id !== productId));
+  };
+
+  return <div className="admin-screen"><div className="admin-header"><div><span className="eyebrow">/ Operations</span><h1>{view === 'orders' ? 'Order desk.' : view === 'users' ? 'User accounts.' : 'Product catalog.'}</h1><p>{view === 'orders' ? 'Review customer requests and keep delivery status moving.' : view === 'users' ? 'Control roles and access for every registered account.' : 'Add products, update prices, and manage product photos.'}</p></div><button className="close-cart" onClick={onClose} aria-label="Close admin dashboard"><X /></button></div><div className="admin-tabs"><button className={view === 'orders' ? 'active' : ''} onClick={() => setView('orders')}>Orders <span>{orders.length}</span></button><button className={view === 'products' ? 'active' : ''} onClick={() => setView('products')}>Products <span>{products.length}</span></button><button className={view === 'users' ? 'active' : ''} onClick={() => setView('users')}>Users <span>{users.length}</span></button></div><div className="admin-content">{status && <p className="admin-status">{status}</p>}{view === 'orders' && !status && orders.length === 0 && <p className="admin-status">No order requests yet.</p>}{view === 'users' && !status && users.length === 0 && <p className="admin-status">No user accounts yet.</p>}{view === 'products' && <><form className="product-form" onSubmit={submitProduct}><h2>{productForm.id ? 'Edit product' : 'Add product'}</h2><div className="product-form-grid"><input required placeholder="Product name" value={productForm.name} onChange={(event) => setProductForm({ ...productForm, name: event.target.value })} /><input required type="number" min="1" placeholder="Price in Ugx" value={productForm.amount} onChange={(event) => setProductForm({ ...productForm, amount: event.target.value })} /><input placeholder="Category" value={productForm.type} onChange={(event) => setProductForm({ ...productForm, type: event.target.value })} /><input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => setProductImage(event.target.files?.[0] || null)} /><textarea required placeholder="Description or features, one per line" value={productForm.description} onChange={(event) => setProductForm({ ...productForm, description: event.target.value })} /><div className="product-form-actions"><button className="button button-blue" type="submit">{productForm.id ? 'Save changes' : 'Add product'} <ArrowUpRight size={17} /></button>{productForm.id && <button className="cancel-button" type="button" onClick={() => setProductForm({ name: '', amount: '', type: 'Product', description: '', image_url: '', is_active: true })}>Cancel</button>}</div></div></form><div className="product-admin-grid">{products.map((product) => <article className="admin-product" key={product.id}>{product.image_url ? <img src={product.image_url} alt="" /> : <div className="admin-product-placeholder">No photo</div>}<div className="admin-product-body"><span className="order-date">{product.type}</span><h2>{product.name}</h2><strong>Ugx {Number(product.amount).toLocaleString()}</strong><p>{product.description}</p><div><button className="edit-product" onClick={() => editProduct(product)}>Edit</button><button className="delete-product" onClick={() => removeProduct(product.id)}>Delete</button></div></div></article>)}</div></>}{view === 'orders' && orders.map((order) => <article className="admin-order" key={order.id}><div className="admin-order-main"><div><span className="order-date">{new Date(order.created_at).toLocaleString()}</span><h2>{order.customer_name}</h2><p>{order.customer_email} · {order.customer_phone}</p></div><strong>Ugx {order.total_amount.toLocaleString()}</strong></div><div className="admin-order-items">{order.order_items?.map((item) => <span key={`${order.id}-${item.product_name}`}>{item.quantity} × {item.product_name}</span>)}</div><div className="admin-order-footer"><span className={`order-status status-${order.status}`}>{order.status}</span><select value={order.status} onChange={(event) => changeStatus(order.id, event.target.value)} aria-label={`Update status for ${order.customer_name}`}><option value="requested">Requested</option><option value="confirmed">Confirmed</option><option value="paid">Paid</option><option value="processing">Processing</option><option value="completed">Completed</option><option value="cancelled">Cancelled</option></select></div></article>)}{view === 'users' && users.map((user) => <article className="admin-user" key={user.user_id}><div><span className="order-date">Joined {new Date(user.created_at).toLocaleDateString()}</span><h2>{user.email}</h2><p>{user.user_id}</p></div><div className="admin-user-controls"><select value={user.role} onChange={(event) => changeUser(user.user_id, { role: event.target.value })} aria-label={`Role for ${user.email}`}><option value="customer">Customer</option><option value="admin">Admin</option></select><select value={user.status} onChange={(event) => changeUser(user.user_id, { status: event.target.value })} aria-label={`Status for ${user.email}`}><option value="active">Active</option><option value="suspended">Suspended</option></select></div></article>)}</div></div>;
 }
 
 function App() {
@@ -82,6 +110,7 @@ function App() {
   const [cartOpen, setCartOpen] = useState(false);
   const [customer, setCustomer] = useState({ name: '', email: '', phone: '' });
   const [orderStatus, setOrderStatus] = useState('');
+  const [storeProducts, setStoreProducts] = useState(packages);
   const [authOpen, setAuthOpen] = useState(false);
   const [session, setSession] = useState(null);
   const [admin, setAdmin] = useState(false);
@@ -103,6 +132,13 @@ function App() {
       isAdmin().then(setAdmin);
     });
   }, [session]);
+
+  useEffect(() => {
+    getProducts().then((result) => {
+      if (!result.ok || !result.products?.length) return;
+      setStoreProducts(result.products.map((product) => ({ ...product, price: `Ugx ${Number(product.amount).toLocaleString()}`, items: product.description.split('\n').filter(Boolean) })));
+    });
+  }, []);
 
   const cartCount = cart.reduce((total, item) => total + item.quantity, 0);
   const cartTotal = cart.reduce((total, item) => total + item.amount * item.quantity, 0);
@@ -145,7 +181,7 @@ function App() {
       <section className="partner-strip"><span>Trusted technology for ambitious operators</span><div className="partner-logos"><b>DELL</b><b>hp</b><b>Lenovo</b><b>TOSHIBA</b></div></section>
       <section className="intro section" id="about"><div className="section-label">/ Who we are</div><div className="intro-grid"><h2>Make your connection <em>count.</em></h2><div><p className="lead">The internet is more than a utility. With the right tools and support, it becomes a reliable source of income, access, and possibility.</p><p>Appstech International helps individuals and businesses turn internet connectivity into a profitable opportunity. We make the technical side clear, practical, and ready for the real world.</p><a className="arrow-link" href="#contact">Meet Appstech <ArrowUpRight size={18} /></a></div></div></section>
       <section className="services section" id="services"><div className="section-label">/ What we do</div><div className="section-heading"><h2>Everything you need to <em>stay connected.</em></h2><p>From your first access point to your hundredth customer, we are in your corner.</p></div><div className="service-grid">{services.map(([number, title, text]) => <article className="service-card" key={number}><span className="service-number">{number}</span><h3>{title}</h3><p>{text}</p><a href="#contact" aria-label={`Learn more about ${title}`}><ArrowUpRight size={20} /></a></article>)}</div></section>
-      <section className="pricing section" id="pricing"><div className="section-label">/ Shop packages</div><div className="section-heading"><h2>Choose the right <em>starting point.</em></h2><p>All prices are in Ugandan shillings. Add a package to your request and we will confirm delivery, installation, and payment.</p></div><div className="pricing-grid">{packages.map((pack, index) => <article className={`price-card ${index === 1 ? 'featured' : ''}`} key={pack.name}><div className="price-card-top"><span>{pack.type}</span><span>0{index + 1}</span></div><h3>{pack.name}</h3><ul>{pack.items.map((item) => <li key={item}>{item}</li>)}</ul><div className="price-bottom"><strong>{pack.price}</strong><button className="add-button" onClick={() => addToCart(pack)} aria-label={`Add ${pack.name} to cart`}><Plus size={19} /> Add</button></div></article>)}</div></section>
+      <section className="pricing section" id="pricing"><div className="section-label">/ Shop packages</div><div className="section-heading"><h2>Choose the right <em>starting point.</em></h2><p>All prices are in Ugandan shillings. Add a package to your request and we will confirm delivery, installation, and payment.</p></div><div className="pricing-grid">{storeProducts.map((pack, index) => <article className={`price-card ${index === 1 ? 'featured' : ''}`} key={pack.id || pack.name}>{pack.image_url && <img className="price-card-image" src={pack.image_url} alt="" />}<div className="price-card-top"><span>{pack.type}</span><span>0{index + 1}</span></div><h3>{pack.name}</h3><ul>{pack.items.map((item) => <li key={item}>{item}</li>)}</ul><div className="price-bottom"><strong>{pack.price}</strong><button className="add-button" onClick={() => addToCart(pack)} aria-label={`Add ${pack.name} to cart`}><Plus size={19} /> Add</button></div></article>)}</div></section>
       <section className="proof" id="proof"><div className="proof-photo" /><div className="proof-content"><div className="section-label">/ The Appstech difference</div><h2>Technology that works as hard as <em>you do.</em></h2><p>Reliable service should feel simple. We combine quality hardware with practical setup and ongoing support so you can focus on your customers.</p><div className="stats"><div><strong>150<span>+</span></strong><small>Businesses supported</small></div><div><strong>24<span>/7</span></strong><small>Technical confidence</small></div><div><strong>10<span>yr</span></strong><small>Of local expertise</small></div></div></div></section>
       <section className="testimonials section"><div className="section-label">/ In their words</div><div className="testimonial-grid"><div><h2>Built with people, <em>not just systems.</em></h2><a className="arrow-link" href="#contact">Start a conversation <ArrowUpRight size={18} /></a></div><blockquote><span className="quote-mark">“</span><p>Appstech helped us move from a slow, unreliable setup to a network our customers can trust. The difference is clear every single day.</p><footer><span className="avatar">AM</span><span><strong>Andrew M.</strong><small>Hotspot operator, Kampala</small></span></footer></blockquote></div></section>
       <section className="faq section" id="faq"><div className="section-label">/ Good to know</div><div className="faq-grid"><h2>Questions, <em>answered.</em></h2><div>{faqs.map(([question, answer], index) => <div className={`faq-item ${activeFaq === index ? 'active' : ''}`} key={question}><button onClick={() => setActiveFaq(activeFaq === index ? -1 : index)}><span>{question}</span><ChevronDown size={20} /></button>{activeFaq === index && <p>{answer}</p>}</div>)}</div></div></section>

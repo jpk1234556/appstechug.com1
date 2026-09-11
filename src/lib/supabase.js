@@ -127,6 +127,32 @@ export async function deleteProduct(productId) {
   return error ? { ok: false, message: 'Product could not be deleted.' } : { ok: true };
 }
 
+export async function getServices() {
+  if (!supabase) return { ok: false, message: 'Supabase is not configured yet.' };
+  const { data, error } = await supabase.from('service_packages').select('id, name, amount, type, description, is_active, created_at').eq('is_active', true).order('created_at', { ascending: false });
+  return error ? { ok: false, message: 'Services could not be loaded.' } : { ok: true, services: data };
+}
+
+export async function getAdminServices() {
+  if (!supabase) return { ok: false, message: 'Supabase is not configured yet.' };
+  const { data, error } = await supabase.from('service_packages').select('id, name, amount, type, description, is_active, created_at').order('created_at', { ascending: false });
+  return error ? { ok: false, message: 'Services could not be loaded.' } : { ok: true, services: data };
+}
+
+export async function saveService(service) {
+  if (!supabase) return { ok: false, message: 'Supabase is not configured yet.' };
+  const payload = { name: service.name, amount: Number(service.amount), type: service.type, description: service.description, is_active: service.is_active !== false };
+  const query = service.id ? supabase.from('service_packages').update(payload).eq('id', service.id).select().single() : supabase.from('service_packages').insert(payload).select().single();
+  const { data, error } = await query;
+  return error ? { ok: false, message: 'Service could not be saved.' } : { ok: true, service: data };
+}
+
+export async function deleteService(serviceId) {
+  if (!supabase) return { ok: false, message: 'Supabase is not configured yet.' };
+  const { error } = await supabase.from('service_packages').delete().eq('id', serviceId);
+  return error ? { ok: false, message: 'Service could not be deleted.' } : { ok: true };
+}
+
 export async function getCurrentProfile() {
   if (!supabase) return null;
   const { data } = await supabase.auth.getUser();

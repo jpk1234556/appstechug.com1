@@ -49,7 +49,7 @@ function LoginView({ onClose, onAuthenticated }) {
     <div className="auth-screen">
       <div className="auth-panel">
         <button className="auth-close" onClick={onClose} aria-label="Close login"><X /></button>
-        <a className="logo auth-logo" href="#top"><strong>APPSTECH</strong><span>INTERNATIONAL</span><small>SALES | SERVICE | SOLUTIONS | SPARES</small></a>
+        <a className="logo auth-logo" href="#top"><strong>APPSTECH</strong><span>INTERNATIONAL</span><small>SALES | SERVICE | SOLUTION | SPARE</small></a>
         <p className="eyebrow">/ Customer account</p>
         <h1>{mode === 'login' ? 'Welcome back.' : 'Start your account.'}</h1>
         <p className="auth-copy">Save your details and keep track of your Appstech orders in one place.</p>
@@ -368,6 +368,27 @@ function App() {
     });
   }, []);
 
+  useEffect(() => {
+    const revealTargets = document.querySelectorAll('main section:not(.hero), .service-card, .price-card, .store-product');
+    if (!revealTargets.length) return undefined;
+
+    revealTargets.forEach((target, index) => {
+      target.classList.add('reveal');
+      target.style.setProperty('--reveal-delay', `${Math.min(index % 4, 3) * 80}ms`);
+    });
+
+    const observer = new IntersectionObserver((entries, currentObserver) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return;
+        entry.target.classList.add('is-visible');
+        currentObserver.unobserve(entry.target);
+      });
+    }, { threshold: 0.12, rootMargin: '0px 0px -40px' });
+
+    revealTargets.forEach((target) => observer.observe(target));
+    return () => observer.disconnect();
+  }, [storeProducts.length, storeServices.length]);
+
   const cartCount = useMemo(() => cart.reduce((total, item) => total + item.quantity, 0), [cart]);
   const cartTotal = useMemo(() => cart.reduce((total, item) => total + Number(item.amount || 0) * item.quantity, 0), [cart]);
 
@@ -416,7 +437,7 @@ function App() {
     <div className="site-shell">
       <div className="utility-bar"><div className="utility-inner"><span>Sales <i>|</i> Service <i>|</i> Solution <i>|</i> Spare</span><div className="socials"><a href="#footer" aria-label="Facebook"><Facebook size={15} /></a><a href="#footer" aria-label="Twitter"><Twitter size={15} /></a><a href="#footer" aria-label="LinkedIn"><Linkedin size={15} /></a><a href="#footer" aria-label="Instagram"><Instagram size={15} /></a></div></div></div>
       <header className="header">
-        <a className="logo" href="#top" aria-label="Appstech home"><strong>APPSTECH</strong><span>INTERNATIONAL</span><small>SALES | SERVICE | SOLUTIONS | SPARES</small></a>
+        <a className="logo" href="#top" aria-label="Appstech home"><strong>APPSTECH</strong><span>INTERNATIONAL</span><small>SALES | SERVICE | SOLUTION | SPARE</small></a>
         <nav className={menuOpen ? 'nav nav-open' : 'nav'}>
           <a href="#about" onClick={() => setMenuOpen(false)}>About</a>
           <a href="#services" onClick={() => setMenuOpen(false)}>Services</a>
@@ -439,7 +460,7 @@ function App() {
       <main id="top">
         <section className="hero">
           <div className="hero-overlay" />
-          <div className="hero-content">
+          <div className="hero-content hero-enter">
             <p className="eyebrow">Reliable connectivity. Real opportunity.</p>
             <h1>Turn internet connectivity <em>into a business.</em></h1>
             <p className="hero-copy">We provide everything you need to build and operate a successful Wi-Fi hotspot business, from network setup and equipment to user management and technical support.</p>
@@ -608,7 +629,7 @@ function App() {
 
       <footer className="footer" id="footer">
         <div className="footer-brand">
-          <a className="logo" href="#top"><strong>APPSTECH</strong><span>INTERNATIONAL</span><small>SALES | SERVICE | SOLUTIONS | SPARES</small></a>
+          <a className="logo" href="#top"><strong>APPSTECH</strong><span>INTERNATIONAL</span><small>SALES | SERVICE | SOLUTION | SPARE</small></a>
           <p>Fast, reliable internet solutions for businesses ready to grow.</p>
         </div>
         <div>
